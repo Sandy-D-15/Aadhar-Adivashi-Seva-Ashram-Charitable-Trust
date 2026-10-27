@@ -129,6 +129,12 @@ Before deploying to production, review the following settings in `/admin/setting
 5. **Bank Account Details:**
    - Confirm trust bank account number, IFSC code, branch, and official UPI VPA in `/admin/settings`.
 
+### Render Database Setup
+
+This project uses SQLite. On Render, attach a persistent disk to the web service at `/var/data` and set `DATABASE_URL` to `file:/var/data/ngo.db`. The `npm start` lifecycle runs `prisma db push` before starting Next.js, creating the schema on the mounted database.
+
+SQLite data on Render's default filesystem is temporary and can be lost when the service is redeployed or restarted. Persistent disks require a paid Render instance; for a service without a disk, use a managed database instead. Set `JWT_SECRET` to a unique, random production value and set `NEXT_PUBLIC_BASE_URL` to the deployed site URL.
+
 ---
 
 ## 🧪 Testing Checklist & Verification Flows
