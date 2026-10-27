@@ -1,0 +1,307 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String
+  passwordHash String
+  role         String      @default("STAFF") // "ADMIN" | "STAFF"
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  auditLogs    AuditLog[]
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   // JSON string
+  updatedAt DateTime @updatedAt
+}
+
+model Supervisor {
+  id          String         @id @default(cuid())
+  name        String
+  phone       String
+  roleTitle   String
+  isDefault   Boolean        @default(false)
+  visits      StudentVisit[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Organization {
+  id               String     @id @default(cuid())
+  name             String     @unique
+  type             String     // NGO, Trust, Company, Housing society, School, Religious body, Business, Government, Other
+  contactPerson    String
+  designation      String?
+  phone            String
+  altPhone         String?
+  email            String?
+  establishedYear  String?    // Year or date
+  streetAddress    String?
+  area             String?
+  city             String     @default("Thane")
+  district         String     @default("Thane")
+  state            String     @default("Maharashtra")
+  pincode          String?
+  mapsLink         String?
+  registrationNo   String?
+  pan              String?
+  taxExemptDetails String?    // 80G / 12A details
+  website          String?
+  notes            String?
+  isPublicPartner  Boolean    @default(true)
+  logoUrl          String?
+  isDeleted        Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  donations        Donation[]
+
+  @@index([name])
+  @@index([phone])
+}
+
+model Donation {
+  id               String         @id @default(cuid())
+  referenceId      String         @unique // e.g. AASA-DON-2026-0001
+  receiptNo        String?        @unique // e.g. AASA-RCPT-2026-0001
+  donationType     String         // CLOTHES, FOOD, TOYS, LEARNING, INSTRUMENTS, CASH, FURNITURE
+  donorType        String         @default("INDIVIDUAL") // INDIVIDUAL, ORGANIZATION, STUDENT
+  
+  // Donor details
+  donorName        String
+  donorPhone       String
+  donorEmail       String?
+  donorAddress     String?
+  pincode          String?
+
+  // Relations (optional based on donorType)
+  organizationId   String?
+  organization     Organization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  studentId        String?
+  student          Student?       @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  collegeId        String?
+  college          College?       @relation(fields: [collegeId], references: [id], onDelete: SetNull)
+  visitId          String?
+  visit            StudentVisit?  @relation(fields: [visitId], references: [id], onDelete: SetNull)
+
+  // Pickup / Logistics
+  pickupType       String         @default("PICKUP") // PICKUP | DROPOFF
+  pickupDate       String?
+  pickupSlot       String?
+  notes            String?
+  receivedBy       String?        // Supervisor name who handled/received
+  status           String         @default("PENDING") // PENDING, CONFIRMED, PICKED_UP, DELIVERED, REJECTED, VOIDED
+
+  // Cash / Money specifics
+  amount           Float?
+  paymentMode      String?        // CASH, UPI, BANK_TRANSFER, CHEQUE, ONLINE
+  txnReference     String?        // Transaction / UTR / Cheque number
+  purpose          String?        // GENERAL, FOOD, EDUCATION, CLOTHES, EMERGENCY
+  donorPan         String?
+
+  // Food specifics
+  urgencyHours     Int?
+  foodType         String?        // COOKED, PACKAGED, RAW, GRAINS
+  foodIsVeg        Boolean?
+  prepDate         String?
+  expiryDate       String?
+
+  // Furniture specifics
+  floorsCount      Int?
+  hasLift          Boolean?
+  needsVehicle     Boolean?
+  approxWeight     String?
+
+  // General item info & photos
+  photos           String?        // JSON array of image URLs
+  isManualEntry    Boolean        @default(false)
+  voidedAt         DateTime?
+  voidReason       String?
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  items            DonationItem[]
+  receipts         Receipt[]
+
+  @@index([createdAt])
+  @@index([donationType])
+  @@index([donorType])
+  @@index([organizationId])
+  @@index([studentId])
+  @@index([collegeId])
+  @@index([receiptNo])
+}
+
+model DonationItem {
+  id          String   @id @default(cuid())
+  donationId  String
+  donation    Donation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  itemType    String   // specific subcategory (e.g. "harmonium", "desk", "winter wear")
+  quantity    String   // approx count, servings, kg, pieces
+  condition   String?  // NEW, GENTLY_USED, WORKING, NEEDS_REPAIR
+  sizeOrAge   String?  // size range or age group
+  detailsJson String?  // JSON with extra metadata
+  createdAt   DateTime @default(now())
+}
+
+model Receipt {
+  id               String   @id @default(cuid())
+  receiptNo        String   @unique
+  donationId       String
+  donation         Donation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  issuedAt         DateTime @default(now())
+  pdfUrl           String?
+  verificationCode String   @unique @default(cuid())
+}
+
+model College {
+  id              String         @id @default(cuid())
+  name            String         @unique
+  university      String?
+  city            String?
+  facultyName     String?
+  facultyPhone    String?
+  facultyEmail    String?
+  showPublicly    Boolean        @default(true)
+  students        Student[]
+  donations       Donation[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([name])
+}
+
+model Student {
+  id               String         @id @default(cuid())
+  studentId        String         @unique // e.g. AASA-STU-2026-0001
+  fullName         String
+  phone            String
+  email            String
+  gender           String?
+  age              Int?
+  city             String?
+  collegeId        String?
+  collegeName      String
+  university       String?
+  course           String
+  yearSemester     String
+  rollNumber       String?
+  facultyName      String?
+  facultyPhone     String?
+  facultyEmail     String?
+  visitType        String         @default("INDIVIDUAL") // INDIVIDUAL | GROUP
+  groupSize        Int?           @default(1)
+  groupMemberNames String?        // text/json
+  purpose          String         // INTERNSHIP, NSS_NCC, COMMUNITY_SERVICE, PROJECT, RESEARCH, EVENT, OTHER
+  preferredDates   String?
+  expectedHours    Int?
+  interests        String         // JSON string array
+  qrCodeDataUrl    String?
+  isDeleted        Boolean        @default(false) // Soft delete
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  college          College?       @relation(fields: [collegeId], references: [id])
+  visits           StudentVisit[]
+  certificates     Certificate[]
+  donations        Donation[]
+
+  @@index([studentId])
+  @@index([phone])
+  @@index([collegeName])
+}
+
+model StudentVisit {
+  id               String            @id @default(cuid())
+  studentId        String
+  student          Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date             String            // YYYY-MM-DD
+  checkInTime      String?           // HH:mm
+  checkOutTime     String?           // HH:mm
+  totalHours       Float             @default(0)
+  location         String            // Ashram, Field Visit, Community Center, etc.
+  beneficiaryCount Int?
+  supervisorId     String?
+  supervisorName   String?
+  supervisor       Supervisor?       @relation(fields: [supervisorId], references: [id])
+  description      String
+  outcome          String?
+  rating           Int?              // 1 to 5
+  adminNotes       String?
+  photoUrl         String?
+  photoConsent     Boolean           @default(false)
+  status           String            @default("REGISTERED") // REGISTERED, VISITED, WORK_LOGGED, APPROVED, CERTIFICATE_ISSUED, REJECTED, NO_SHOW
+  approvedBy       String?
+  approvedAt       DateTime?
+  certificateId    String?
+  certificate      Certificate?      @relation(fields: [certificateId], references: [id])
+  
+  // Visit Donation tracking
+  broughtDonation  Boolean           @default(false)
+  donationSource   String?           // SELF, COLLEGE_DRIVE, CLASSMATES
+  donations        Donation[]
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  activities       VisitActivity[]
+
+  @@index([date])
+  @@index([studentId])
+  @@index([status])
+}
+
+model VisitActivity {
+  id          String       @id @default(cuid())
+  visitId     String
+  visit       StudentVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  activity    String       // e.g. Teaching children, Clothes sorting, Food distribution, etc.
+}
+
+model Certificate {
+  id              String         @id @default(cuid())
+  certificateId   String         @unique // e.g. AASA-CERT-2026-0001
+  type            String         @default("VOLUNTEER") // VOLUNTEER | APPRECIATION_DONATION
+  studentId       String?
+  student         Student?       @relation(fields: [studentId], references: [id])
+  recipientName   String
+  collegeName     String?
+  course          String?
+  workSummary     String
+  startDate       String
+  endDate         String
+  totalHours      Float          @default(0)
+  supervisorName  String
+  qrCodeData      String         // Verification URL
+  pdfUrl          String?
+  issuedAt        DateTime       @default(now())
+  isRevoked       Boolean        @default(false)
+  visits          StudentVisit[]
+
+  @@index([certificateId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  userName   String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String   // e.g. "APPROVE_VISIT", "ISSUE_CERTIFICATE", "MANUAL_DONATION", "VOID_DONATION", "CREATE_ORGANIZATION"
+  entityType String   // "StudentVisit", "Donation", "Certificate", "Organization"
+  entityId   String
+  details    String?  // JSON formatted details
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
